@@ -1,0 +1,101 @@
+[package]
+name = "bloglite"
+version = "0.1.0"
+edition = "2021"
+default-run = "bloglite"
+
+
+[[bin]]
+name = "bloglite"
+path = "src/main.rs"
+
+[[bin]]
+name = "refresh_token"
+path = "src/refresh_token.rs"
+
+
+[dependencies]
+# -- trait
+async-trait = "0.1.86"
+
+# -- axum
+axum = { version = "0.8.1", features = ["multipart"] }
+tower = { version = "0.5.2", features = ["timeout", "limit"] }
+
+axum-extra = { version = "0.10", default-features = false, features = [
+    "query",
+] }
+
+
+# -- regex
+regex = "1.11.1"
+
+# -- serde json & yaml & toml
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.139"
+serde_yaml = "0.9"
+toml = "0.8.20"
+
+# -- error
+thiserror = "2.0.11"
+
+# -- http
+reqwest = { version = "0.12.15", features = ["rustls-tls", "json"] }
+
+# -- markdown render to html
+pulldown-cmark = "0.13"
+
+# -- sql
+sqlx = { version = "0.8", features = [
+    "postgres",
+    "runtime-tokio-rustls",
+    "json",
+    "chrono",
+] }
+
+# -- time
+chrono = "0.4.40"
+
+# -- jwt
+jsonwebtoken = { version = "9.3.1", default-features = false }
+
+# -- system path
+directories = "6.0.0"
+
+# -- hash
+sha2 = "0.10"
+hex = "0.4"
+
+# -- log
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "chrono"] }
+
+# -- middleware
+tower-http = { version = "0.6.2", features = [
+    "trace",
+    "timeout",
+    "limit",
+    "cors",
+] }
+
+# -- local
+pubsub = { path = "../../libs/pubsub", features = ["topic", "message"] }
+lib-cqrs = { path = "../../libs/lib-cqrs" }
+lib-utils = { path = "../../libs/lib-utils" }
+lib-db = { path = "../../libs/lib-db" }
+lib-api = { path = "../../libs/lib-api" }
+
+
+# -- tokio
+# tokio = {version = "^1", features = ["full"]}
+[dependencies.tokio]
+version = "^1"
+features = ["full"]
+
+[dev-dependencies]
+# -- criterion
+criterion = "0.5"
+
+[[bench]]
+name = "bench"
+harness = false

@@ -1,0 +1,79 @@
+INSERT INTO categories (id, display_name)
+VALUES 
+    ('infexp', '无限探索'),
+    ('quest', '求知');
+
+
+
+-- INSERT INTO articles_rm (slug, category_id, category_name, author, state, current_version, title, tags, rendered_summary, rendered_content, created_at, updated_at)
+-- VALUES 
+-- (
+--     'getting-started-with-postgresql',
+--     'db',
+--     'Databases',
+--     'alice',
+--     1,
+--     'v1.0',
+--     'Getting Started with PostgreSQL',
+--     ARRAY['database', 'postgresql', 'tutorial'],
+--     'A beginner-friendly introduction to PostgreSQL database system.',
+--     '<article><h1>Getting Started with PostgreSQL</h1><p>PostgreSQL is a powerful open-source relational database...</p></article>',
+--     '2023-01-15 09:30:00+00',
+--     '2023-01-15 10:45:00+00'
+-- ),
+-- (
+--     'react-hooks-explained',
+--     'webdev',
+--     'Web Development',
+--     'bob',
+--     1,
+--     'v2.1',
+--     'React Hooks Explained',
+--     ARRAY['react', 'javascript', 'frontend'],
+--     'Understanding React Hooks and their practical applications.',
+--     '<article><h1>React Hooks Explained</h1><p>Hooks allow you to use state and other React features without writing a class...</p></article>',
+--     '2023-02-20 14:15:00+00',
+--     '2023-03-05 11:20:00+00'
+-- ),
+-- (
+--     'draft-article',
+--     'general',
+--     'General',
+--     'charlie',
+--     0,
+--     'v0.5',
+--     'Draft Article (Work in Progress)',
+--     ARRAY['draft', 'unfinished'],
+--     'This is a draft article that is not yet published.',
+--     '<article><h1>Draft Article</h1><p>This content is still being written...</p></article>',
+--     '2023-03-10 16:40:00+00',
+--     '2023-03-12 08:10:00+00'
+-- ),
+-- (
+--     'deleted-article',
+--     'old',
+--     'Archived',
+--     'alice',
+--     0,
+--     'v3.2',
+--     'Deleted Article Example',
+--     ARRAY['archived', 'obsolete'],
+--     'This article has been deleted and is no longer available.',
+--     '<article><h1>Deleted Article</h1><p>This content has been removed...</p></article>',
+--     '2022-11-05 10:00:00+00',
+--     '2023-01-10 15:30:00+00'
+-- ),
+-- (
+--     'python-data-analysis',
+--     'data-science',
+--     'Data Science',
+--     'diana',
+--     1,
+--     'v1.3',
+--     'Python for Data Analysis',
+--     ARRAY['python', 'pandas', 'data-analysis'],
+--     'Using Python and Pandas for effective data analysis.',
+--     '<article><h1>Python for Data Analysis</h1><p>Pandas provides high-performance data structures and tools...</p></article>',
+--     '2023-04-01 12:00:00+00',
+--     '2023-04-18 09:15:00+00'
+-- );

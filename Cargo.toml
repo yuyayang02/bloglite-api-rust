@@ -1,0 +1,16 @@
+[workspace]
+members = [
+    "bins/bloglite",
+    "libs/lib-api",
+    "libs/lib-cqrs", 
+    "libs/lib-db", 
+    "libs/pubsub", 
+    "libs/lib-utils"
+]
+
+resolver = "2"
+
+[profile.release]
+panic = "abort"
+
+ 

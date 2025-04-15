@@ -1,0 +1,19 @@
+[env]
+
+# 日志配置
+RUST_LOG = "bloglite=debug"
+
+
+# token secret
+ACCESS_SECRET = ""
+REFRESH_SECRET = ""
+
+# 数据库连接（仅在cargo命令中起效）
+DATABASE_URL=""
+
+# github markdown渲染接口的 apikey
+MARKDOWN_RENDER_GITHUB_KEY = ""
+
+PG_DEV_SUPERUSER_URL = ""
+PG_DEV_APP_URL = ""
+SQL_00_FILEPATH = ""

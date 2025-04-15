@@ -1,0 +1,46 @@
+[package]
+name = "pubsub"
+version = "0.1.0"
+edition = "2021"
+
+
+[features]
+# default = ["default-pubsub", "bus", "topic", "traits", "message", "router", "error"]
+
+error = ["dep:thiserror"]
+
+topic = ["dep:macros"]
+default-pubsub = ["traits"]
+message = ["dep:uuid", "dep:chrono", "dep:serde", "dep:serde_json"]
+router = ["dep:tokio", "error", "message", "dep:tracing"]
+traits = ["dep:async-trait", "dep:tokio", "error", "message"]
+bus = ["dep:macros", "message", "traits"]
+
+
+[dependencies]
+# -- trait
+async-trait = { version = "0.1.86", optional = true }
+
+# -- serde json 
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0.139", optional = true }
+
+# -- log
+tracing = { version = "0.1.41", optional = true }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "chrono"], optional = true }
+
+# -- error
+thiserror = { version = "2.0.11", optional = true }
+
+# -- utils
+uuid = { version = "1.15.1", features = ["v4"], optional = true }
+chrono = { version = "0.4.40", optional = true }
+
+# -- local
+macros = { path = "macros", optional = true }
+
+# -- tokio
+[dependencies.tokio]
+version = "^1"
+features = ["full"]
+optional = true
