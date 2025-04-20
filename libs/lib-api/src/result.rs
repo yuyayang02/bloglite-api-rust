@@ -1,4 +1,6 @@
-use super::error::ErrorResponse;
-use super::success::SuccessResponse;
+use axum::response::IntoResponse;
+use serde::Serialize;
 
-pub type Result<T, E = ErrorResponse> = core::result::Result<SuccessResponse<T>, E>;
+use super::error::ErrorResponse;
+
+pub type ApiResult<T, E = ErrorResponse> = core::result::Result<T, E>;

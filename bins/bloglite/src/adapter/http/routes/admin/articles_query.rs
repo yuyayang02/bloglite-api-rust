@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, routing::get, Router};
 
 use axum_extra::extract::Query;
-use lib_api::Result;
+use lib_api::{ApiResult, Json};
 use lib_cqrs::QueryHandler;
 
 use crate::application::{
@@ -48,27 +48,28 @@ struct GetListQuery {
 async fn list(
     Query(query): Query<GetListQuery>,
     State(handler): State<search_articles::QueryHandlerForAdmin>,
-) -> Result<query_handlers::ArticleListResult<query_handlers::ArticleForAdminResult>> {
-    Ok(handler
-        .handle(search_articles::Query {
-            page: query.page,
-            limit: query.limit,
-            category: query.category,
-            author: query.author,
-            tags: query.tags,
-        })
-        .await?
-        .into())
+) -> ApiResult<Json<query_handlers::ArticleListResult<query_handlers::ArticleForAdminResult>>> {
+    Ok(Json(
+        handler
+            .handle(search_articles::Query {
+                page: query.page,
+                limit: query.limit,
+                category: query.category,
+                author: query.author,
+                tags: query.tags,
+            })
+            .await?,
+    ))
 }
 
 async fn tag_list(
     State(handler): State<get_all_tags::QueryHandlerForAdmin>,
-) -> Result<query_handlers::ItemsResult<String>> {
-    Ok(handler.handle(()).await?.into())
+) -> ApiResult<Json<query_handlers::ItemsResult<String>>> {
+    Ok(Json(handler.handle(()).await?))
 }
 
 async fn category_list(
     State(handler): State<get_all_categories::QueryHandler>,
-) -> Result<query_handlers::ItemsResult<query_handlers::CategoryResult>> {
-    Ok(handler.handle(()).await?.into())
+) -> ApiResult<Json<query_handlers::ItemsResult<query_handlers::CategoryResult>>> {
+    Ok(Json(handler.handle(()).await?))
 }

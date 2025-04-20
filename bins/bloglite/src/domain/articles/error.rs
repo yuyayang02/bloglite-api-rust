@@ -8,6 +8,9 @@ pub enum Error {
     #[error(transparent)]
     VersionError(#[from] super::version::Error),
 
+    #[error("文章id格式无效")]
+    ArticleIdFormatError,
+
     #[error("文章slug格式无效")]
     ArticleSlugFormatError,
 

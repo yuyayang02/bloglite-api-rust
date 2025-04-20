@@ -1,11 +1,16 @@
 use pubsub::message::Message;
 
-use super::{Article, ArticleSlug};
+use super::{Article, ArticleId, ArticleSlug};
 
 pub trait ArticleRepository: Send + Sync {
     type Error;
     /// 查找聚合对象
     fn find(
+        &self,
+        id: &ArticleId,
+    ) -> impl std::future::Future<Output = Result<Option<Article>, Self::Error>>;
+
+    fn find_by_slug(
         &self,
         slug: &ArticleSlug,
     ) -> impl std::future::Future<Output = Result<Option<Article>, Self::Error>>;

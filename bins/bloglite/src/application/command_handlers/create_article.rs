@@ -32,16 +32,16 @@ pub struct CommandHandler {
     pub(in crate::application) category_repository: Arc<application::CategoryRepository>,
 }
 
-impl lib_cqrs::CommandHandler for CommandHandler {
+impl lib_cqrs::CommandHandler<(String,)> for CommandHandler {
     type Command = Command;
     type Error = application::Error;
-    async fn handle(&self, cmd: Self::Command) -> Result<(), Self::Error> {
+    async fn handle(&self, cmd: Self::Command) -> Result<(String,), Self::Error> {
         // 校验slug格式
         let slug = articles::ArticleSlug::try_from(cmd.slug)?;
 
         // 检查是否已存在
         self.article_repository
-            .find(&slug)
+            .find_by_slug(&slug)
             .await? // 返回 Option<Article>
             .map(|_| Err(application::error::Error::ResourceAlreadyExists)) // 返回 Option<Result(Err)>
             .unwrap_or(Ok(()))?; // 如果option is none返回Ok(())，否则返回内部值Result，然后`?`解包固定得到Err
@@ -54,18 +54,21 @@ impl lib_cqrs::CommandHandler for CommandHandler {
 
         // 处理文章内容
         let content = self.content_factory.process(cmd.markdown_document).await?;
+
         // 创建文章聚合
-        let (article, event) = articles::ArticelBuilder::new()
+        let builder = articles::ArticleBuilder::new()
             .slug(slug)
             .author(cmd.user_id)
-            .category(cmd.category, is_valid) // TODO 此处的 true 应为外部服务查询获得
-            .content(content)
-            .build()?;
+            .category(cmd.category, is_valid)
+            .content(content);
 
-        // 保存聚合
+        let (article, event) = builder.build()?;
+        let id = article.id().to_string();
+
         self.article_repository
             .save_all(article, [event.into()])
             .await?;
-        Ok(())
+
+        Ok((id,))
     }
 }

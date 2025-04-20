@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 pub use error::{Error, Result};
 
 // -- article fields
-macro_rules! article_fields {
+macro_rules! article_value_object {
     ($name:ident $(, $role_fn:expr)?) => {
         #[derive(Default, Clone)]
         pub struct $name(String);
@@ -54,7 +54,7 @@ macro_rules! article_fields {
     };
 }
 
-article_fields!(ArticleSlug, |slug: &ArticleSlug| {
+article_value_object!(ArticleSlug, |slug: &ArticleSlug| {
     const ARTICLE_SLUG_MAX_LENGTH: usize = 25;
     static ROLE: OnceLock<regex::Regex> = OnceLock::new();
     let role = ROLE.get_or_init(|| regex::Regex::new(r"^[a-zA-Z0-9-]+$").unwrap());
@@ -70,7 +70,7 @@ article_fields!(ArticleSlug, |slug: &ArticleSlug| {
     Ok(())
 });
 
-article_fields!(ArticleCategory, |category: &ArticleCategory| {
+article_value_object!(ArticleCategory, |category: &ArticleCategory| {
     if category.is_empty() {
         Err(Error::ArticleCategoryFormatError)
     } else {
@@ -78,7 +78,12 @@ article_fields!(ArticleCategory, |category: &ArticleCategory| {
     }
 });
 
-article_fields!(ArticleAuthor);
+article_value_object!(ArticleId, |id: &ArticleId| {
+    ulid::Ulid::from_string(&id.0)
+        .map(|_| ())
+        .map_err(|_| Error::ArticleIdFormatError)
+});
+article_value_object!(ArticleAuthor);
 
 // -- article state
 #[derive(Clone)]
@@ -92,7 +97,7 @@ pub enum ArticleState {
 impl From<ArticleState> for i16 {
     fn from(value: ArticleState) -> Self {
         match value {
-            ArticleState::Deleted => -1, // 0 私有
+            ArticleState::Deleted => -1, // -1 已删除
             ArticleState::Private => 0,  // 0 私有
             ArticleState::Public => 1,   // 1 公开
         }
@@ -103,6 +108,9 @@ impl From<ArticleState> for i16 {
 
 pub struct Article {
     /// 文章唯一标识
+    pub(self) id: ArticleId,
+
+    /// 文章slug
     pub(self) slug: ArticleSlug,
 
     /// 文章分类
@@ -117,9 +125,14 @@ pub struct Article {
 
 impl Article {
     // 文章字段
+    pub fn id(&self) -> &ArticleId {
+        &self.id
+    }
+
     pub fn slug(&self) -> &ArticleSlug {
         &self.slug
     }
+
     pub fn category(&self) -> &ArticleCategory {
         &self.category
     }
@@ -137,13 +150,14 @@ impl Article {
             ArticleState::Deleted => Err(Error::ArticleDeleted),
             ArticleState::Private => Ok((
                 Article {
-                    slug: self.slug.clone(),
+                    id: self.id.clone(),
+                    slug: self.slug,
                     version_history: self.version_history,
                     category: self.category,
                     state: ArticleState::Public,
                 },
                 events::ArticleStateChanged {
-                    slug: self.slug.into(),
+                    id: self.id.into(),
                     state: ArticleState::Public.into(),
                 },
             )),
@@ -157,13 +171,14 @@ impl Article {
             ArticleState::Deleted => Err(Error::ArticleDeleted),
             ArticleState::Public => Ok((
                 Article {
-                    slug: self.slug.clone(),
+                    id: self.id.clone(),
+                    slug: self.slug,
                     version_history: self.version_history,
                     category: self.category,
                     state: ArticleState::Private,
                 },
                 events::ArticleStateChanged {
-                    slug: self.slug.into(),
+                    id: self.id.into(),
                     state: ArticleState::Private.into(),
                 },
             )),
@@ -180,7 +195,7 @@ impl Article {
         self.version_history.add_version(&content.hash)?;
 
         Ok(events::ArticleContentUpdated {
-            slug: self.slug.clone().to_string(),
+            id: self.id.clone().to_string(),
             parent_version: prev_version,
             current_version: self.version_history.current_version_hash.to_string(),
 
@@ -203,7 +218,7 @@ impl Article {
         self.version_history.rollback_to_version(&hash)?;
 
         Ok(events::ArticleContentReverted {
-            slug: self.slug.clone().into(),
+            id: self.id.clone().into(),
             prev_version,
             current_version: self.version_history.current_version_hash.to_string(),
         })
@@ -226,7 +241,7 @@ impl Article {
         self.category = category.clone();
 
         Ok(events::ArticleCategoryChanged {
-            slug: self.slug.clone().into(),
+            id: self.id.clone().into(),
             old_category_id: self.category.clone().into(),
             new_category_id: category.into(),
         })
@@ -236,7 +251,7 @@ impl Article {
     pub fn delete(&mut self) -> Result<events::ArticleDeleted> {
         self.state = ArticleState::Deleted;
         Ok(events::ArticleDeleted {
-            slug: self.slug.clone().into(),
+            id: self.id.clone().into(),
         })
     }
 
@@ -254,6 +269,9 @@ impl Article {
 pub struct NoSlug;
 
 #[derive(Default, Clone)]
+pub struct NoId;
+
+#[derive(Default, Clone)]
 pub struct NoAuthor;
 
 #[derive(Default, Clone)]
@@ -263,38 +281,48 @@ pub struct NoCategory;
 pub struct NoContent;
 
 #[derive(Default, Clone)]
-pub struct ArticelBuilder<S, A, CA, CO> {
+pub struct ArticleBuilder<S, A, CA, CO> {
+    id: ulid::Ulid,
     slug: S,
+    // 当slug冲突时启用
+    slug_conflict: Option<u8>,
     author: A,
     category: CA,
     is_valid_category: bool, // 默认值为false
     content: CO,
 }
 
-impl ArticelBuilder<NoSlug, NoAuthor, NoCategory, NoContent> {
+impl ArticleBuilder<NoSlug, NoAuthor, NoCategory, NoContent> {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            id: ulid::Ulid::new(),
+            ..Self::default()
+        }
     }
 }
 
-impl<S, A, CA, CO> ArticelBuilder<S, A, CA, CO> {
-    pub fn slug<T: Into<String>>(self, slug: T) -> ArticelBuilder<ArticleSlug, A, CA, CO> {
-        ArticelBuilder {
+impl<S, A, CA, CO> ArticleBuilder<S, A, CA, CO> {
+    pub fn slug<T: Into<String>>(self, slug: T) -> ArticleBuilder<ArticleSlug, A, CA, CO> {
+        ArticleBuilder {
+            id: self.id,
             slug: ArticleSlug(slug.into()),
             author: self.author,
             category: self.category,
             content: self.content,
             is_valid_category: self.is_valid_category,
+            slug_conflict: self.slug_conflict,
         }
     }
 
-    pub fn author<T: Into<String>>(self, author: T) -> ArticelBuilder<S, ArticleAuthor, CA, CO> {
-        ArticelBuilder {
+    pub fn author<T: Into<String>>(self, author: T) -> ArticleBuilder<S, ArticleAuthor, CA, CO> {
+        ArticleBuilder {
+            id: self.id,
             slug: self.slug,
             author: ArticleAuthor(author.into()),
             category: self.category,
             content: self.content,
             is_valid_category: self.is_valid_category,
+            slug_conflict: self.slug_conflict,
         }
     }
 
@@ -302,42 +330,48 @@ impl<S, A, CA, CO> ArticelBuilder<S, A, CA, CO> {
         self,
         category: T,
         is_valid: bool,
-    ) -> ArticelBuilder<S, A, ArticleCategory, CO> {
+    ) -> ArticleBuilder<S, A, ArticleCategory, CO> {
         // if !is_valid {
         //     return Err(Error::InvalidCategory);
         // }
 
-        ArticelBuilder {
+        ArticleBuilder {
+            id: self.id,
             slug: self.slug,
             author: self.author,
             category: ArticleCategory(category.into()),
             content: self.content,
             is_valid_category: is_valid,
+            slug_conflict: self.slug_conflict,
         }
     }
 
-    pub fn content(self, content: content::Content) -> ArticelBuilder<S, A, CA, content::Content> {
-        ArticelBuilder {
+    pub fn content(self, content: content::Content) -> ArticleBuilder<S, A, CA, content::Content> {
+        ArticleBuilder {
+            id: self.id,
             slug: self.slug,
             author: self.author,
             category: self.category,
             content: content,
             is_valid_category: self.is_valid_category,
+            slug_conflict: self.slug_conflict,
         }
     }
 }
 
 // 当所有泛型参数设置完后，就可以`build`
-impl ArticelBuilder<ArticleSlug, ArticleAuthor, ArticleCategory, content::Content> {
+impl ArticleBuilder<ArticleSlug, ArticleAuthor, ArticleCategory, content::Content> {
     // 从仓储创建聚合
     // 可能有创建未经验证的聚合的风险，谨慎使用
     pub(crate) fn only_from_repository<T: Into<String>>(
+        id: T,
         slug: T,
         category: T,
         state: ArticleState,
         history: version::VersionHistory,
     ) -> Article {
         Article {
+            id: ArticleId(id.into()),
             slug: ArticleSlug(slug.into()),
             category: ArticleCategory(category.into()),
             version_history: history,
@@ -346,7 +380,7 @@ impl ArticelBuilder<ArticleSlug, ArticleAuthor, ArticleCategory, content::Conten
     }
 
     // 构建聚合
-    pub fn build(self) -> Result<(Article, events::ArticleCreated)> {
+    pub fn build(mut self) -> Result<(Article, events::ArticleCreated)> {
         // 检查分类有效性（通过注入flag参数分离具体行为和业务逻辑）
         if !self.is_valid_category {
             return Err(Error::InvalidCategory);
@@ -358,20 +392,26 @@ impl ArticelBuilder<ArticleSlug, ArticleAuthor, ArticleCategory, content::Conten
         // 当前版本号
         let current_version = history.current_version_hash.to_string();
 
+        if let Some(i) = self.slug_conflict {
+            self.slug = ArticleSlug(format!("{}-{}", self.slug.as_ref(), i))
+        }
+
         // 校验参数
         self.slug.validate()?;
-        // self.author.validate()?; // 文章领域不关心作者
         self.category.validate()?;
+        // self.author.validate()?; // 文章领域不关心作者
 
         // 返回实体和创建事件（events::ArticleCreated）
         Ok((
             Article {
+                id: ArticleId(self.id.to_string()),
                 slug: self.slug.clone(),
                 category: self.category.clone(),
                 version_history: history,
                 state: ArticleState::Private,
             },
             events::ArticleCreated {
+                id: self.id.to_string(),
                 slug: self.slug.to_string(),
                 author: self.author.to_string(),
                 category_id: self.category.to_string(),
@@ -400,7 +440,7 @@ mod tests {
     fn test_new_article() {
         let content = default_mock_content();
 
-        let (article, event) = ArticelBuilder::new()
+        let (article, event) = ArticleBuilder::new()
             .slug("slug")
             .author("author")
             .category("category", true)
@@ -409,7 +449,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(article.category.as_ref(), "category");
-        assert_eq!(article.slug.as_ref(), "slug");
 
         assert_eq!(event.author.as_str(), "author");
         assert_eq!(event.slug.as_str(), "slug");
@@ -422,7 +461,7 @@ mod tests {
     fn test_article_update_content() {
         let content = default_mock_content();
 
-        let (mut article, _) = ArticelBuilder::new()
+        let (mut article, _) = ArticleBuilder::new()
             .slug("slug")
             .author("author")
             .category("category", true)
@@ -440,9 +479,7 @@ mod tests {
         let event = article.update_content(content2).unwrap();
 
         assert_eq!(article.category.as_ref(), "category");
-        assert_eq!(article.slug.as_ref(), "slug");
 
-        assert_eq!(event.slug.as_str(), "slug");
         assert_eq!(event.parent_version.as_str(), "hash");
         assert_eq!(event.current_version.as_str(), "hash2");
     }
@@ -451,7 +488,7 @@ mod tests {
     fn test_article_restore_content() {
         let content = default_mock_content();
 
-        let (mut article, _) = ArticelBuilder::new()
+        let (mut article, _) = ArticleBuilder::new()
             .slug("slug")
             .author("author")
             .category("category", true)
@@ -481,9 +518,7 @@ mod tests {
         );
 
         assert_eq!(article.category.as_ref(), "category");
-        assert_eq!(article.slug.as_ref(), "slug");
 
-        assert_eq!(event.slug.as_str(), "slug");
         assert_eq!(event.current_version.as_str(), "hash");
     }
 
@@ -491,7 +526,8 @@ mod tests {
     fn test_only_from_repository() {
         let history = version::VersionHistory::new(version::Version::new("hash").unwrap()).unwrap();
 
-        let article = ArticelBuilder::only_from_repository(
+        let article = ArticleBuilder::only_from_repository(
+            ulid::Ulid::new().to_string().as_str(),
             "slug",
             "category",
             ArticleState::Private,
@@ -499,6 +535,5 @@ mod tests {
         );
 
         assert_eq!(article.category.as_ref(), "category");
-        assert_eq!(article.slug.as_ref(), "slug");
     }
 }

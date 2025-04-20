@@ -15,7 +15,23 @@ impl ArticleRepository {
 
 impl articles::repository::ArticleRepository for ArticleRepository {
     type Error = lib_db::Error;
-    async fn find(&self, slug: &articles::ArticleSlug) -> Result<Option<Article>> {
+    async fn find(&self, id: &articles::ArticleId) -> Result<Option<Article>> {
+        let result = sqlx::query_as::<_, model::ArticleRow>(
+            r#"--sql
+            select * from articles where id = ($1) AND state != -1
+            "#,
+        )
+        .bind(id.as_ref())
+        .fetch_optional(&self.db)
+        .await?;
+
+        result.map(|a| articles::Article::try_from(a)).transpose()
+    }
+
+    async fn find_by_slug(
+        &self,
+        slug: &articles::ArticleSlug,
+    ) -> std::result::Result<Option<Article>, Self::Error> {
         let result = sqlx::query_as::<_, model::ArticleRow>(
             r#"--sql
             select * from articles where slug = ($1) AND state != -1
@@ -61,12 +77,13 @@ async fn save_article<'a>(
 ) -> Result<()> {
     sqlx::query(
         r#"--sql
-        INSERT INTO articles (slug, category, state, version_history)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (slug) DO UPDATE
-        SET category = $2, state = $3, version_history = $4
+        INSERT INTO articles (id, slug, category, state, version_history)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (id) DO UPDATE
+        SET slug = $2, category = $3, state = $4, version_history = $5
         "#,
     )
+    .bind(row.id)
     .bind(row.slug)
     .bind(row.category)
     .bind(row.state)

@@ -41,17 +41,17 @@ where
             -- 第一部分：插入历史版本
             WITH insert_version AS (
                 INSERT INTO article_versions_rm (
-                    version, slug, title, summary, body, tags, created_at
+                    version, article_id, title, summary, body, tags, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             )
             -- 第二部分：插入/更新主读模型
             INSERT INTO articles_rm (
-                title, tags, slug, category_id, author, state, current_version,
-                rendered_summary, rendered_content, created_at, updated_at, category_name
+                title, tags, id, category_id, author, state, current_version,
+                rendered_summary, rendered_content, created_at, updated_at, slug, category_name
             )
-            VALUES ($3, $6, $2, $8, $9, $10, $1, $11, $12, $7, $7, (SELECT display_name FROM categories WHERE id = $8))
-            ON CONFLICT (slug) DO UPDATE SET
+            VALUES ($3, $6, $2, $8, $9, $10, $1, $11, $12, $7, $7, $13, (SELECT display_name FROM categories WHERE id = $8))
+            ON CONFLICT (id) DO UPDATE SET
                 category_id = $8,
                 author = $9,
                 state = $10,
@@ -63,7 +63,7 @@ where
             "#,
         )
         .bind(&event.current_version) // $1
-        .bind(&event.slug) // $2
+        .bind(&event.id) // $2
         .bind(&event.title) // $3
         .bind(&event.summary) // $4
         .bind(&event.body) // $5
@@ -74,6 +74,7 @@ where
         .bind(&event.state) // $10
         .bind(&event.rendered_summary) // $11
         .bind(&event.rendered_body) // $12
+        .bind(&event.slug) // $13
         .execute(executor)
         .await?;
 
@@ -96,12 +97,12 @@ where
         sqlx::query(
             r#"--sql
             WITH del_versions AS (
-                DELETE FROM article_versions_rm WHERE slug = $1
+                DELETE FROM article_versions_rm WHERE article_id = $1
             )
-            DELETE FROM articles_rm WHERE slug = $1
+            DELETE FROM articles_rm WHERE id = $1
             "#,
         )
-        .bind(&event.slug)
+        .bind(&event.id)
         .execute(executor)
         .await?;
 
@@ -125,7 +126,7 @@ where
             r#"--sql
             WITH insert_version AS (
                 INSERT INTO article_versions_rm (
-                    version, prev_version, slug, title, summary, body, tags, created_at
+                    version, prev_version, article_id, title, summary, body, tags, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $10)
             )
@@ -137,12 +138,12 @@ where
                 rendered_summary = $8,
                 rendered_content = $9,
                 updated_at = $10
-            WHERE slug = $3
+            WHERE id = $3
             "#,
         )
         .bind(&event.current_version)
         .bind(&event.parent_version)
-        .bind(&event.slug)
+        .bind(&event.id)
         .bind(&event.title)
         .bind(&event.summary)
         .bind(&event.body)
@@ -173,10 +174,10 @@ where
             r#"--sql
             SELECT title, summary, body, tags
             FROM article_versions_rm
-            WHERE slug = $1 AND version = $2
+            WHERE article_id = $1 AND version = $2
             "#,
         )
-        .bind(&event.slug)
+        .bind(&event.id)
         .bind(&event.current_version)
         .fetch_one(&self.db)
         .await?;
@@ -203,7 +204,7 @@ where
                     rendered_content = $4,
                     tags = $5,
                     updated_at = $6
-                WHERE slug = $7
+                WHERE id = $7
                 "#,
         )
         .bind(&title)
@@ -212,7 +213,7 @@ where
         .bind(&rendered_body)
         .bind(&tags)
         .bind(event_time)
-        .bind(&event.slug)
+        .bind(&event.id)
         .execute(executor)
         .await?;
 
@@ -237,11 +238,11 @@ where
             UPDATE articles_rm
             SET state = $1,
                 updated_at = $3
-            WHERE slug = $2
+            WHERE id = $2
             "#,
         )
         .bind(&event.state)
-        .bind(&event.slug)
+        .bind(&event.id)
         .bind(event_time)
         .execute(executor)
         .await?;
@@ -268,11 +269,11 @@ where
             SET category_id = $1,
                 updated_at = $3,
                 category_name = (SELECT display_name FROM categories WHERE id = $1)
-            WHERE slug = $2
+            WHERE id = $2
             "#,
         )
         .bind(&event.new_category_id)
-        .bind(&event.slug)
+        .bind(&event.id)
         .bind(event_time)
         .execute(executor)
         .await?;
@@ -297,6 +298,8 @@ mod tests {
         let policy =
             ReadmodelUpdatePolicy::new(db.clone(), infra::domain::ArticleContentRender::default());
 
+        let id = ulid::Ulid::new().to_string();
+
         let mut tx = db.begin().await.unwrap();
 
         let base_time = Local::now();
@@ -304,6 +307,7 @@ mod tests {
         let v1 = "1na9df".to_string();
         // 1. 文章创建 (私有状态)
         let created = ArticleCreated {
+            id: id.clone(),
             slug: "test-article-1".to_string(),
             current_version: v1.clone(), // 示例: "aB3dEf"
             category_id: "private".to_string(),
@@ -320,14 +324,14 @@ mod tests {
 
         // 2. 状态变更为发布 (5分钟后)
         let state_changed_published = ArticleStateChanged {
-            slug: "test-article-1".to_string(),
+            id: id.clone(),
             state: 1, // 发布状态
         };
         let t2 = base_time + Duration::minutes(5);
 
         // 3. 分类变更 (tech分类，10分钟后)
         let category_changed = ArticleCategoryChanged {
-            slug: "test-article-1".to_string(),
+            id: id.clone(),
             old_category_id: "private".to_string(),
             new_category_id: "tech".to_string(),
         };
@@ -336,7 +340,7 @@ mod tests {
         let v2 = "2nds9j".to_string();
         // 4. 内容更新 (15分钟后)
         let content_updated = ArticleContentUpdated {
-            slug: "test-article-1".to_string(),
+            id: id.clone(),
             parent_version: created.current_version.clone(), // 使用创建时的版本
             current_version: v2,                             // 新版本号
             title: "公开技术文档".to_string(),
@@ -350,7 +354,7 @@ mod tests {
 
         // 5. 内容回滚 (20分钟后)
         let content_reverted = ArticleContentReverted {
-            slug: "test-article-1".to_string(),
+            id: id.clone(),
             prev_version: content_updated.current_version.clone(), // 回滚前的版本
             current_version: v1,                                   // 新版本号
         };
@@ -358,15 +362,13 @@ mod tests {
 
         // 6. 状态变回私有 (25分钟后)
         let state_changed_private = ArticleStateChanged {
-            slug: "test-article-1".to_string(),
+            id: id.clone(),
             state: 0, // 私有状态
         };
         let t6 = base_time + Duration::minutes(25);
 
         // 7. 文章删除 (30分钟后)
-        let deleted = ArticleDeleted {
-            slug: "test-article-1".to_string(),
-        };
+        let deleted = ArticleDeleted { id: id.clone() };
         let t7 = base_time + Duration::minutes(30);
 
         policy.project(&created, t1, tx.as_mut()).await.unwrap();
