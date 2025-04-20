@@ -1,8 +1,9 @@
 use axum::{
     extract::{Multipart, Path, State},
+    http::{HeaderMap, HeaderValue},
     routing::{delete, patch, post, Router},
-    Json,
 };
+
 use serde::Deserialize;
 
 use std::sync::Arc;
@@ -10,17 +11,17 @@ use std::sync::Arc;
 use crate::application::{self, AppState};
 
 use application as app;
-use lib_api::{extract::WrapRejection, Result, SuccessResponse};
+use lib_api::{extract::WrapRejection, ApiResult, Json};
 use lib_cqrs::CommandHandler;
 
 pub fn setup(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", post(create))
-        .route("/{slug}", post(update_content))
-        .route("/{slug}", delete(remove))
-        .route("/{slug}/version", patch(revert_content))
-        .route("/{slug}/category", patch(set_category))
-        .route("/{slug}/state", patch(set_state))
+        .route("/{id}", post(update_content))
+        .route("/{id}", delete(remove))
+        .route("/{id}/version", patch(revert_content))
+        .route("/{id}/category", patch(set_category))
+        .route("/{id}/state", patch(set_state))
         .with_state(state)
 }
 
@@ -28,7 +29,7 @@ pub fn setup(state: Arc<AppState>) -> Router {
 async fn create(
     State(handler): State<app::create_article::CommandHandler>,
     WrapRejection(mut multipart): WrapRejection<Multipart>,
-) -> Result<()> {
+) -> ApiResult<(HeaderMap, Json<()>)> {
     // 初始化命令
     let mut cmd = app::create_article::Command::default();
 
@@ -52,9 +53,16 @@ async fn create(
     }
 
     // 处理命令
-    handler.handle(cmd).await?;
+    let (id,) = handler.handle(cmd).await?;
 
-    Ok(().into())
+    Ok((
+        {
+            let mut header = HeaderMap::new();
+            header.insert("Resource-Id", HeaderValue::from_str(&id).unwrap());
+            header
+        },
+        Json(()),
+    ))
 }
 
 ///  更新文章内容
@@ -62,7 +70,7 @@ async fn update_content(
     Path(slug): Path<String>,
     State(handler): State<app::update_article_content::CommandHandler>,
     WrapRejection(mut multipart): WrapRejection<Multipart>,
-) -> Result<()> {
+) -> ApiResult<Json<()>> {
     let mut cmd = app::update_article_content::Command::default();
 
     while let Some(field) = multipart
@@ -78,11 +86,11 @@ async fn update_content(
         }
     }
 
-    cmd.slug = slug;
+    cmd.id = slug;
 
     handler.handle(cmd).await?;
 
-    Ok(().into())
+    Ok(Json(()))
 }
 
 #[derive(Deserialize)]
@@ -92,29 +100,27 @@ struct RevertArticleVersionJson {
 
 /// 恢复文章内容
 async fn revert_content(
-    Path(slug): Path<String>,
+    Path(id): Path<String>,
     State(handler): State<app::revert_article_content::CommandHandler>,
-    Json(req): Json<RevertArticleVersionJson>,
-) -> Result<()> {
+    axum::Json(req): axum::Json<RevertArticleVersionJson>,
+) -> ApiResult<Json<()>> {
     handler
         .handle(app::revert_article_content::Command {
-            slug,
+            id,
             target_version: req.version,
         })
         .await?;
 
-    SuccessResponse::ok()
+    Ok(Json(()))
 }
 
 /// 删除文章
 async fn remove(
-    Path(slug): Path<String>,
+    Path(id): Path<String>,
     State(handler): State<app::delete_article::CommandHandler>,
-) -> Result<()> {
-    handler
-        .handle(app::delete_article::Command { slug })
-        .await?;
-    Ok(().into())
+) -> ApiResult<Json<()>> {
+    handler.handle(app::delete_article::Command { id }).await?;
+    Ok(Json(()))
 }
 
 #[derive(Deserialize)]
@@ -126,16 +132,16 @@ struct SetArticleCategoryJson {
 async fn set_category(
     Path(slug): Path<String>,
     State(handler): State<app::set_article_category::CommandHandler>,
-    Json(req): Json<SetArticleCategoryJson>,
-) -> Result<()> {
+    axum::Json(req): axum::Json<SetArticleCategoryJson>,
+) -> ApiResult<Json<()>> {
     handler
         .handle(app::set_article_category::Command {
-            slug,
+            id: slug,
             new_category: req.category,
         })
         .await?;
 
-    Ok(().into())
+    Ok(Json(()))
 }
 
 #[derive(Deserialize)]
@@ -147,14 +153,14 @@ struct SetArticleStateJson {
 async fn set_state(
     Path(slug): Path<String>,
     State(handler): State<app::set_article_state::CommandHandler>,
-    Json(req): Json<SetArticleStateJson>,
-) -> Result<()> {
+    axum::Json(req): axum::Json<SetArticleStateJson>,
+) -> ApiResult<Json<()>> {
     handler
         .handle(app::set_article_state::Command {
-            slug,
+            id: slug,
             state: req.state,
         })
         .await?;
 
-    Ok(().into())
+    Ok(Json(()))
 }

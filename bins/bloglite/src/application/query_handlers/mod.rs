@@ -30,6 +30,8 @@ pub struct ArticleWithContentResult {
 
 #[derive(serde::Serialize)]
 pub struct ArticleForAdminResult {
+    pub id: String,
+
     #[serde(flatten)]
     pub parent: ArticleMetaResult,
     pub state: i16,

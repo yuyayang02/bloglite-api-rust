@@ -97,19 +97,6 @@ impl TryFrom<VersionHistoryJson> for articles::version::VersionHistory {
             .get(dto.current_index)
             .ok_or(ERR_MISSING_CURRENT_INDEX)?;
 
-        // 检查版本连续性
-        // let mut visited = HashSet::new();
-        // let mut current = current_version;
-        // while let Some(ver) = version_map.get(current) {
-        //     if !visited.insert(current) {
-        //         return Err(Self::Error::InvalidVersion);
-        //     }
-        //     current = match &ver.parent {
-        //         Some(p) => p,
-        //         None => break,
-        //     };
-        // }
-
         Ok(articles::version::VersionHistory {
             current_version_hash: current_version.clone(),
             version_history: version_map,
@@ -119,6 +106,7 @@ impl TryFrom<VersionHistoryJson> for articles::version::VersionHistory {
 
 #[derive(Debug, FromRow)]
 pub struct ArticleRow {
+    pub id: String,
     pub slug: String,
     pub category: String,
     pub state: i16,
@@ -144,7 +132,8 @@ impl TryFrom<ArticleRow> for articles::Article {
             }
         };
 
-        Ok(articles::ArticelBuilder::only_from_repository(
+        Ok(articles::ArticleBuilder::only_from_repository(
+            value.id,
             value.slug,
             value.category,
             state,
@@ -162,6 +151,7 @@ impl From<articles::Article> for ArticleRow {
         let state: i16 = value.state().to_owned().into();
 
         Self {
+            id: value.id().to_string(),
             slug: value.slug().to_string(),
             category: value.category().to_string(),
             state,
@@ -231,6 +221,7 @@ mod tests {
         let history = new_version_history();
 
         let article_row = ArticleRow {
+            id: ulid::Ulid::new().to_string(),
             slug: "slug".to_string(),
             category: "category".to_string(),
             state: 0,
@@ -241,7 +232,6 @@ mod tests {
 
         let articel_row_2: ArticleRow = article.into();
 
-        assert_eq!(articel_row_2.slug, "slug");
         assert_eq!(articel_row_2.category, "category");
         assert_eq!(articel_row_2.state, 0);
     }
@@ -249,6 +239,7 @@ mod tests {
     #[test]
     fn test_article_row_from_into_article_for_state_error() {
         let article_row = ArticleRow {
+            id: ulid::Ulid::new().to_string(),
             slug: "slug".to_string(),
             category: "category".to_string(),
             state: 100,

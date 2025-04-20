@@ -98,6 +98,7 @@ impl lib_cqrs::QueryHandler for QueryHandlerForAdmin {
                     // content: a.rendered_content,
                     state: a.state,
                     version: a.current_version,
+                    id: a.id,
                 })
                 .collect(),
         })

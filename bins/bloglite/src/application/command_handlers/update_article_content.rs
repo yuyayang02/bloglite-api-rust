@@ -7,7 +7,7 @@ use crate::{
 
 #[derive(Default)]
 pub struct Command {
-    pub slug: String,
+    pub id: String,
     pub markdown_document: String,
 }
 
@@ -21,11 +21,11 @@ impl lib_cqrs::CommandHandler for CommandHandler {
     type Error = application::Error;
 
     async fn handle(&self, cmd: Self::Command) -> Result<(), Self::Error> {
-        let slug = articles::ArticleSlug::try_from(cmd.slug)?;
+        let id = articles::ArticleId::try_from(cmd.id)?;
 
         let mut article = self
             .article_repository
-            .find(&slug)
+            .find(&id)
             .await?
             .ok_or(application::Error::ResourceNotFound)?;
 

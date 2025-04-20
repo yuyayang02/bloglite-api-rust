@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use axum_extra::extract::Query;
-use lib_api::Result;
+use lib_api::{ApiResult, Json};
 use lib_cqrs::QueryHandler;
 
 use crate::application::{
@@ -32,8 +32,8 @@ pub fn setup(state: Arc<AppState>) -> Router {
 async fn article(
     Path(slug): Path<String>,
     State(handler): State<get_article::QueryHandler>,
-) -> Result<query_handlers::ArticleWithContentResult> {
-    Ok(handler.handle(get_article::Query { slug }).await?.into())
+) -> ApiResult<Json<query_handlers::ArticleWithContentResult>> {
+    Ok(Json(handler.handle(get_article::Query { slug }).await?))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -51,27 +51,28 @@ struct GetListQuery {
 async fn list(
     Query(query): Query<GetListQuery>,
     State(handler): State<search_articles::QueryHandler>,
-) -> Result<query_handlers::ArticleListResult> {
-    Ok(handler
-        .handle(search_articles::Query {
-            page: query.page,
-            limit: query.limit,
-            category: query.category,
-            author: query.author,
-            tags: query.tags,
-        })
-        .await?
-        .into())
+) -> ApiResult<Json<query_handlers::ArticleListResult>> {
+    Ok(Json(
+        handler
+            .handle(search_articles::Query {
+                page: query.page,
+                limit: query.limit,
+                category: query.category,
+                author: query.author,
+                tags: query.tags,
+            })
+            .await?,
+    ))
 }
 
 async fn tag_list(
     State(handler): State<get_all_tags::QueryHandler>,
-) -> Result<query_handlers::ItemsResult<String>> {
-    Ok(handler.handle(()).await?.into())
+) -> ApiResult<Json<query_handlers::ItemsResult<String>>> {
+    Ok(Json(handler.handle(()).await?))
 }
 
 async fn category_list(
     State(handler): State<get_all_categories::QueryHandler>,
-) -> Result<query_handlers::ItemsResult<query_handlers::CategoryResult>> {
-    Ok(handler.handle(()).await?.into())
+) -> ApiResult<Json<query_handlers::ItemsResult<query_handlers::CategoryResult>>> {
+    Ok(Json(handler.handle(()).await?))
 }

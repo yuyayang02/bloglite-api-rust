@@ -15,13 +15,12 @@ path = "src/refresh_token.rs"
 
 
 [dependencies]
-# -- trait
-async-trait = "0.1.86"
+# -- id gen
+ulid = "1.2.1"
 
 # -- axum
 axum = { version = "0.8.1", features = ["multipart"] }
 tower = { version = "0.5.2", features = ["timeout", "limit"] }
-
 axum-extra = { version = "0.10", default-features = false, features = [
     "query",
 ] }
@@ -84,6 +83,7 @@ lib-cqrs = { path = "../../libs/lib-cqrs" }
 lib-utils = { path = "../../libs/lib-utils" }
 lib-db = { path = "../../libs/lib-db" }
 lib-api = { path = "../../libs/lib-api" }
+
 
 
 # -- tokio

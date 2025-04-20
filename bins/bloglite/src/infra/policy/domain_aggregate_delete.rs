@@ -14,10 +14,10 @@ impl DomainAggregateDeletePolicy {
     ) -> Result<(), Error> {
         sqlx::query(
             r#"--sql 
-            DELETE FROM articles WHERE slug = $1
+            DELETE FROM articles WHERE id = $1
             "#,
         )
-        .bind(&event.slug)
+        .bind(&event.id)
         .execute(executor)
         .await?;
 

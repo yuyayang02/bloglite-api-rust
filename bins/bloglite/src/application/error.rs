@@ -46,6 +46,7 @@ impl lib_api::ApiError for Error {
                 | articles::Error::ArticleStatusNoChanged => EC::OperationNotAllowed,
                 articles::Error::InvalidCategory => EC::DependencyNotSatisfied,
                 articles::Error::ArticleCategoryFormatError
+                | articles::Error::ArticleIdFormatError
                 | articles::Error::ArticleSlugFormatError => EC::InvalidInput,
             },
             Error::Database(_) => EC::DatabaseError,

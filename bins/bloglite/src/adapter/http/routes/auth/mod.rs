@@ -6,7 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
-use lib_api::Result;
+use lib_api::ApiResult;
 
 use crate::application::{auth, AppState};
 
@@ -16,7 +16,7 @@ pub fn setup(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-async fn refresh_token(parts: Parts, State(jwt): State<auth::JwtState>) -> Result<String> {
+async fn refresh_token(parts: Parts, State(jwt): State<auth::JwtState>) -> ApiResult<String> {
     let token = parts
         .headers
         .get(header::AUTHORIZATION)
@@ -30,5 +30,5 @@ async fn refresh_token(parts: Parts, State(jwt): State<auth::JwtState>) -> Resul
     // 生成 access token
     let token = jwt.sign_access_token()?;
 
-    Ok(token.into())
+    Ok(token)
 }

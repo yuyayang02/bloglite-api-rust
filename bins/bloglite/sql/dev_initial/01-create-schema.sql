@@ -1,6 +1,7 @@
 -- 文章聚合
 CREATE TABLE IF NOT EXISTS articles (
-    slug VARCHAR(255) PRIMARY KEY NOT NULL,
+    id VARCHAR(26) PRIMARY KEY NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
     category VARCHAR(255) NOT NULL,
     state SMALLINT NOT NULL,
     version_history JSON NOT NULL
@@ -28,7 +29,10 @@ CREATE TABLE IF NOT EXISTS outbox (
 
 -- 文章读模型
 CREATE TABLE IF NOT EXISTS articles_rm (
-    slug             TEXT PRIMARY KEY,        -- 唯一标识
+    -- slug             TEXT PRIMARY KEY,        -- 唯一标识
+    id VARCHAR(26) PRIMARY KEY NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+
     category_id      TEXT NOT NULL,           -- 当前分类
     category_name      TEXT NOT NULL,           -- 冗余字段
 
@@ -46,13 +50,15 @@ CREATE TABLE IF NOT EXISTS articles_rm (
     updated_at       TIMESTAMPTZ NOT NULL    -- 最后更新时间
 );
 
+CREATE INDEX IF NOT EXISTS idx_articles_rm_slug ON articles_rm(slug);
+
 -- 文章历史版本读模型
 CREATE TABLE IF NOT EXISTS article_versions_rm (
     id SERIAL PRIMARY KEY,
     prev_version TEXT DEFAULT NULL,
     version TEXT NOT NULL,
 
-    slug TEXT NOT NULL,
+    article_id TEXT NOT NULL,
     title TEXT NOT NULL,
     summary TEXT NOT NULL,
     body TEXT NOT NULL,

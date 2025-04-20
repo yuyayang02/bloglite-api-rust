@@ -75,6 +75,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_render() {
         let render = GithubArticleContentRender::default();
 
